@@ -10,7 +10,7 @@ import os
 import subprocess
 import sys
 
-ROOT = os.path.dirname(os.path.abspath(__file__))
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OWNER, REPO, BRANCH = "CJX0712", "sindyforge", "main"
 SKIP_DIRS = {".git", "__pycache__", ".ruff_cache", ".pytest_cache"}
 
@@ -66,6 +66,23 @@ def bootstrap_parent():
     return r["commit"]["sha"]
 
 
+def _git(*args):
+    return subprocess.run(
+        ["git", *args], capture_output=True, text=True, encoding="utf-8", cwd=ROOT
+    ).stdout
+
+
+def git_message():
+    """直接复用本地 HEAD 的提交信息，避免本地与远端描述漂移。"""
+    return _git("log", "-1", "--pretty=%B").strip()
+
+
+def git_author():
+    name = _git("config", "user.name").strip() or "晨星"
+    email = _git("config", "user.email").strip() or "CJX0712@users.noreply.github.com"
+    return {"name": name, "email": email}
+
+
 def main():
     files = collect(ROOT)
     print(f"收集文件 {len(files)} 个")
@@ -80,36 +97,19 @@ def main():
     tree = gh_api("POST", f"/repos/{OWNER}/{REPO}/git/trees", payload)
     print("tree sha:", tree["sha"])
 
-    msg = (
-        "feat: SindyForge v0.1.0 — 稀疏非线性动力学辨识 (StabSINDy)\n\n"
-        "从含噪观测轨迹中恢复可解释的稀疏微分方程。在 SINDy 范式上叠加\n"
-        "稳定性选择，并配套自适应导数估计、平滑状态建库、有效样本量校正的\n"
-        "BIC 定阶。\n\n"
-        "核心\n"
-        "- StabSINDy 旗舰：多 λ 稳定性选择 + 岭稳定 OLS 重拟合 + BIC 向后消元\n"
-        "- 自适应 SG 导数窗口：二阶差分估噪声 σ̂，按 SG 滤波器系数范数选满足\n"
-        "  噪声预算的最小窗口（噪声 5% 下导数误差 60%~167% → 9.4%）\n"
-        "- 平滑状态建库：规避 x1³ 等非线性项的噪声放大（EIV）偏差\n"
-        "- 离线降级：无 sklearn/scipy 时自动切纯 numpy 坐标下降 + 中心差分\n\n"
-        "基准（96 行真实运行，4 系统 × 2 噪声 × 3 seed × 4 方法）\n"
-        "  方法        support-F1   系数误差   项数\n"
-        "  StabSINDy      0.7842     0.3375    5.5\n"
-        "  Lasso          0.2232     1.1637   30.8\n"
-        "  OLS            0.1831     3.8199   40.5\n"
-        "  SingleSTR      0.6722     0.3835    7.3\n"
-        "门禁（配对 t 检验，三项全过）\n"
-        "  support-F1 +251.3% (p=6.21e-39) / 稀疏度 +82.2% (p=6.63e-10)\n"
-        "  / 系数误差 +71.0% (p=0.0113)\n"
-        "消融（剥离稳定性共识）：support-F1 +16.7%, p=0.00537\n"
-        "确定性：两轮全量基准逐位一致\n\n"
-        "Author: 晨星\n"
-    )
+    msg = git_message()
+    print("提交信息取自本地 git HEAD：", msg.splitlines()[0])
 
     # 仓库已由 bootstrap 建了初始提交，这里以它为父提交（保持线性历史）
     commit = gh_api(
         "POST",
         f"/repos/{OWNER}/{REPO}/git/commits",
-        {"message": msg, "tree": tree["sha"], "parents": [parent]},
+        {
+            "message": msg,
+            "tree": tree["sha"],
+            "parents": [parent],
+            "author": git_author(),
+        },
     )
     print("commit sha:", commit["sha"])
 
