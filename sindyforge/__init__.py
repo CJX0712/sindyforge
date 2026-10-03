@@ -15,14 +15,29 @@ from .core import (
     make_rng,
     set_all,
 )
+from .data import SYSTEMS, make_dataset, simulate
+from .discovery import ALL_METHODS, StabSINDy
+from .pipeline import SindyPipeline, summarize
 
 __version__ = "0.1.0"
 __author__ = "晨星"
 
 __all__ = [
+    # 配置与确定性
     "Config",
     "set_all",
     "make_rng",
+    # 旗舰与全部辨识器
+    "StabSINDy",
+    "ALL_METHODS",
+    # 数据
+    "SYSTEMS",
+    "simulate",
+    "make_dataset",
+    # 编排
+    "SindyPipeline",
+    "summarize",
+    # 类型与错误
     "DiscoveryResult",
     "BenchmarkRow",
     "SystemSpec",
