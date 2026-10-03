@@ -35,24 +35,6 @@ def gh_api(method, endpoint, payload=None, tolerant=False):
     return json.loads(res.stdout) if res.stdout.strip() else {}
 
 
-def empty_tree_commit():
-    """建一个空树提交作为重建历史的根 —— 不复用任何既有提交，彻底切断污染历史。"""
-
-    print("重建模式 → 新建空树提交作为历史根（不复用既有提交）")
-    tree = gh_api("POST", f"/repos/{OWNER}/{REPO}/git/trees", {"tree": []})["sha"]
-    commit = gh_api(
-        "POST",
-        f"/repos/{OWNER}/{REPO}/git/commits",
-        {
-            "message": "chore: 初始化仓库",
-            "tree": tree,
-            "parents": [],
-            "author": {"name": "晨星", "email": "CJX0712@users.noreply.github.com"},
-        },
-    )
-    return commit["sha"]
-
-
 def bootstrap_parent():
     """空仓库上 trees API 会 409（尚无默认分支）。用 contents API 建初始提交确立 HEAD。"""
     import base64
@@ -163,25 +145,21 @@ def push_history(rebuild=False):
         return
 
     if rebuild:
-        # 清理模式：从全新空树提交重建完整线性历史，切断被污染的旧历史
-        remote = []
         print("重建模式：丢弃远端现有历史，重新镜像本地全部提交")
-        parent = empty_tree_commit()
+        parent = None  # 首个提交不设父提交，彻底切断旧历史
     else:
         parent = remote[-1]["sha"] if remote else bootstrap_parent()
 
     for i, c in enumerate(todo, 1):
         tree = build_tree(c)
-        commit = gh_api(
-            "POST",
-            f"/repos/{OWNER}/{REPO}/git/commits",
-            {
-                "message": c["msg"],
-                "tree": tree,
-                "parents": [parent],
-                "author": {"name": c["author"] or "晨星", "email": c["email"]},
-            },
-        )
+        payload = {
+            "message": c["msg"],
+            "tree": tree,
+            "author": {"name": c["author"] or "晨星", "email": c["email"]},
+        }
+        if parent:
+            payload["parents"] = [parent]
+        commit = gh_api("POST", f"/repos/{OWNER}/{REPO}/git/commits", payload)
         parent = commit["sha"]
         print(f"  [{i}/{len(todo)}] {c['sha'][:8]} {c['msg'].splitlines()[0][:60]}")
 
