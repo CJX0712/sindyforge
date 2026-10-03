@@ -1,0 +1,11 @@
+# 锁定依赖清单（在 Windows / Python 3.13.14 上实测通过，逐位可复现）
+# 生成方式：pip freeze 后人工剔除本地路径与传递依赖中的非直接项
+# 用途：干净环境一键复现 → pip install -r requirements.lock.txt
+
+numpy==2.5.3
+scipy==1.18.1
+scikit-learn==1.9.1
+
+# --- 开发/测试（可选） ---
+pytest==9.1.1
+ruff==0.16.9

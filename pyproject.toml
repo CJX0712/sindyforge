@@ -1,0 +1,43 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sindyforge"
+version = "0.1.0"
+description = "SindyForge · 稀疏非线性动力学系统辨识 (SINDy / StabSINDy)，纯 numpy 离线可跑"
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "MIT" }
+authors = [{ name = "晨星" }]
+keywords = ["SINDy", "dynamics", "system-identification", "sparse-regression", "StabSINDy"]
+dependencies = [
+    "numpy>=2.0",
+    "scipy>=1.12",
+    "scikit-learn>=1.4",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "pytest-cov>=5", "ruff>=0.5"]
+
+[project.scripts]
+sindyforge = "sindyforge.cli.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["sindyforge*"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+addopts = "-q -W ignore::UserWarning"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+ignore = ["E501"]
+
+[tool.ruff.format]
+quote-style = "double"

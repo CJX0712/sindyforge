@@ -1,0 +1,28 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.eggs/
+
+.pytest_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+.env
+.venv/
+venv/
+envs/
+
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# 诊断脚本（开发期临时产物，不入库）
+_diag*.py
+
+# 基准产物：examples/ 下的归档结果入库，根目录的临时产物不入库
+/benchmark.json

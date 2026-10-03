@@ -1,0 +1,86 @@
+{
+  "meta": {
+    "tool": "SindyForge",
+    "version": "0.1.0",
+    "author": "晨星",
+    "generated_at": "2026-10-03T16:18:52.339993+00:00",
+    "mode": "default",
+    "config": {
+      "seed": 42,
+      "n_steps": 1200,
+      "dt": 0.02,
+      "horizon": 200,
+      "noise_levels": [
+        0.05,
+        0.1
+      ],
+      "seeds": [
+        0,
+        1,
+        2
+      ],
+      "degree": 3,
+      "include_trig": true,
+      "str_rel": 0.03,
+      "stab_grid": [
+        0.2,
+        0.5,
+        1.0,
+        2.0,
+        5.0
+      ],
+      "stab_frac": 0.5
+    },
+    "systems": [
+      "lorenz",
+      "vanderpol",
+      "duffing",
+      "pendulum"
+    ]
+  },
+  "determinism": {
+    "exact_match": true,
+    "mismatches": [],
+    "flagship_rmse_run1": 0.0374262864816497,
+    "flagship_rmse_run2": 0.0374262864816497
+  },
+  "ablation": {
+    "metric": "support_f1",
+    "flagship_f1": 0.7841600529100529,
+    "ablated_f1": 0.672200176366843,
+    "rel_gain": 0.16655734479001813,
+    "flagship_n_terms": 5.458333333333333,
+    "ablated_n_terms": 7.291666666666667,
+    "t": 2.783717545488811,
+    "p": 0.005373981045877832,
+    "n_pairs": 24
+  },
+  "failures": [
+    {
+      "type": "support_incomplete",
+      "system": "lorenz",
+      "noise": 0.1,
+      "seed": 0,
+      "support_f1": 0.39999999999999997,
+      "n_terms": 13,
+      "reason": "噪声抬高导数估计误差，稳定性共识在临界弱项上保守剔除（误伤真项）或保留噪声伪项。"
+    },
+    {
+      "type": "chaotic_sensitivity",
+      "system": "lorenz",
+      "noise": 0.1,
+      "seed": 0,
+      "rollout_rmse": 1000000.0,
+      "reason": "Lorenz 为混沌系统，即便系数近似正确，有限步 rollout 仍指数发散；这是动力学固有属性，非方法缺陷。"
+    },
+    {
+      "type": "dense_overfit_blowup",
+      "system": "lorenz",
+      "noise": 0.1,
+      "seed": 1,
+      "n_terms": 78,
+      "rollout_rmse": 1.8523002679192133,
+      "reason": "OLS 全特征稠密拟合（含噪声伪项），rollout 数值发散；凸显稀疏回归的必要性。"
+    }
+  ]
+}
