@@ -37,7 +37,6 @@ def gh_api(method, endpoint, payload=None, tolerant=False):
 
 def empty_tree_commit():
     """建一个空树提交作为重建历史的根 —— 不复用任何既有提交，彻底切断污染历史。"""
-    import base64
 
     print("重建模式 → 新建空树提交作为历史根（不复用既有提交）")
     tree = gh_api("POST", f"/repos/{OWNER}/{REPO}/git/trees", {"tree": []})["sha"]
