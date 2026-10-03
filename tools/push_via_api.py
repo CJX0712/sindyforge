@@ -15,17 +15,6 @@ OWNER, REPO, BRANCH = "CJX0712", "sindyforge", "main"
 SKIP_DIRS = {".git", "__pycache__", ".ruff_cache", ".pytest_cache"}
 
 
-def collect(root):
-    """只取 git 跟踪的文件 —— 临时诊断脚本/缓存天然被排除在外。"""
-    res = subprocess.run(["git", "ls-files", "-z"], capture_output=True, text=True, cwd=root)
-    rels = [p for p in res.stdout.split("\0") if p]
-    out = []
-    for rel in rels:
-        with open(os.path.join(root, rel), encoding="utf-8") as f:
-            out.append({"path": rel, "mode": "100644", "type": "blob", "content": f.read()})
-    return out
-
-
 def gh_api(method, endpoint, payload=None, tolerant=False):
     # Windows 下 stdin 传 JSON 会被 gh 解析失败，改走 --input 临时文件（ensure_ascii 转义非 ASCII）
     cmd = ["gh", "api", "-X", method, endpoint]
@@ -44,6 +33,25 @@ def gh_api(method, endpoint, payload=None, tolerant=False):
         print(f"[FAIL] {method} {endpoint}\n{res.stderr[:2000]}", file=sys.stderr)
         sys.exit(1)
     return json.loads(res.stdout) if res.stdout.strip() else {}
+
+
+def empty_tree_commit():
+    """建一个空树提交作为重建历史的根 —— 不复用任何既有提交，彻底切断污染历史。"""
+    import base64
+
+    print("重建模式 → 新建空树提交作为历史根（不复用既有提交）")
+    tree = gh_api("POST", f"/repos/{OWNER}/{REPO}/git/trees", {"tree": []})["sha"]
+    commit = gh_api(
+        "POST",
+        f"/repos/{OWNER}/{REPO}/git/commits",
+        {
+            "message": "chore: 初始化仓库",
+            "tree": tree,
+            "parents": [],
+            "author": {"name": "晨星", "email": "CJX0712@users.noreply.github.com"},
+        },
+    )
+    return commit["sha"]
 
 
 def bootstrap_parent():
@@ -72,55 +80,134 @@ def _git(*args):
     ).stdout
 
 
-def git_message():
-    """直接复用本地 HEAD 的提交信息，避免本地与远端描述漂移。"""
-    return _git("log", "-1", "--pretty=%B").strip()
+def local_commits():
+    """本地提交序列（旧 → 新），只取 git 跟踪文件构成的历史。"""
+    shas = _git("rev-list", "--reverse", "HEAD").split()
+    out = []
+    for sha in shas:
+        paths = _git("ls-tree", "-r", "--name-only", sha).splitlines()
+        msg = _git("log", "-1", "--pretty=%B", sha).strip()
+        author = _git("log", "-1", "--pretty=%an", sha).strip()
+        email = _git("log", "-1", "--pretty=%ae", sha).strip()
+        tree = _git("rev-parse", f"{sha}^{{tree}}").strip()
+        out.append(
+            {
+                "sha": sha,
+                "tree": tree,
+                "paths": [p for p in paths if p],
+                "msg": msg,
+                "author": author,
+                "email": email,
+            }
+        )
+    return out
 
 
-def git_author():
-    name = _git("config", "user.name").strip() or "晨星"
-    email = _git("config", "user.email").strip() or "CJX0712@users.noreply.github.com"
-    return {"name": name, "email": email}
-
-
-def main():
-    files = collect(ROOT)
-    print(f"收集文件 {len(files)} 个")
-    payload = {"tree": files}
-    with open(os.path.join(ROOT, "_tree.json"), "w", encoding="utf-8") as f:
-        json.dump(payload, f, ensure_ascii=False)
-    print(f"tree payload: {os.path.getsize(os.path.join(ROOT, '_tree.json')) / 1024:.0f} KB")
-
-    # 空仓库上 trees API 会 409，必须先确立默认分支
-    parent = bootstrap_parent()
-
-    tree = gh_api("POST", f"/repos/{OWNER}/{REPO}/git/trees", payload)
-    print("tree sha:", tree["sha"])
-
-    msg = git_message()
-    print("提交信息取自本地 git HEAD：", msg.splitlines()[0])
-
-    # 仓库已由 bootstrap 建了初始提交，这里以它为父提交（保持线性历史）
-    commit = gh_api(
-        "POST",
-        f"/repos/{OWNER}/{REPO}/git/commits",
+def remote_commits():
+    """远端 main 的提交（新 → 旧转旧 → 新），并附上去重后的 tree SHA 集合。"""
+    res = gh_api("GET", f"/repos/{OWNER}/{REPO}/commits?sha={BRANCH}&per_page=100")
+    out = [
         {
-            "message": msg,
-            "tree": tree["sha"],
-            "parents": [parent],
-            "author": git_author(),
-        },
-    )
-    print("commit sha:", commit["sha"])
+            "sha": c["sha"],
+            "msg": c["commit"]["message"].strip(),
+            "tree": c["commit"]["tree"]["sha"],
+        }
+        for c in res
+    ]
+    out.reverse()
+    return out
+
+
+def missing_commits(local, remote):
+    """返回尚未出现在远端的本地提交（按 tree SHA 内容寻址判断，天然幂等）。
+
+    git tree SHA 由内容唯一决定，因此「tree 已在远端出现」等价于「该提交内容已推送」，
+    不受重复提交 / 顺序错乱影响。
+    """
+    seen = {c["tree"] for c in remote}
+    return [c for c in local if c["tree"] not in seen]
+
+
+def blob_for(rel, rev):
+    """取某提交下某文件的内容字节；不存在则返回 None。"""
+    res = subprocess.run(["git", "show", f"{rev}:{rel}"], capture_output=True, cwd=ROOT)
+    if res.returncode != 0:
+        return None
+    return res.stdout
+
+
+def build_tree(commit):
+    items = []
+    for rel in commit["paths"]:
+        content = blob_for(rel, commit["sha"])
+        if content is None:
+            continue
+        items.append(
+            {
+                "path": rel,
+                "mode": "100644",
+                "type": "blob",
+                "content": content.decode("utf-8"),
+            }
+        )
+    return gh_api("POST", f"/repos/{OWNER}/{REPO}/git/trees", {"tree": items})["sha"]
+
+
+def push_history(rebuild=False):
+    local = local_commits()
+    remote = remote_commits()
+    print(f"本地提交 {len(local)} 个；远端 {len(remote)} 个")
+
+    todo = local if rebuild else missing_commits(local, remote)
+    if not todo:
+        print("远端已包含全部本地提交，无需推送")
+        return
+
+    if rebuild:
+        # 清理模式：从全新空树提交重建完整线性历史，切断被污染的旧历史
+        remote = []
+        print("重建模式：丢弃远端现有历史，重新镜像本地全部提交")
+        parent = empty_tree_commit()
+    else:
+        parent = remote[-1]["sha"] if remote else bootstrap_parent()
+
+    for i, c in enumerate(todo, 1):
+        tree = build_tree(c)
+        commit = gh_api(
+            "POST",
+            f"/repos/{OWNER}/{REPO}/git/commits",
+            {
+                "message": c["msg"],
+                "tree": tree,
+                "parents": [parent],
+                "author": {"name": c["author"] or "晨星", "email": c["email"]},
+            },
+        )
+        parent = commit["sha"]
+        print(f"  [{i}/{len(todo)}] {c['sha'][:8]} {c['msg'].splitlines()[0][:60]}")
 
     gh_api(
         "PATCH",
         f"/repos/{OWNER}/{REPO}/git/refs/heads/{BRANCH}",
-        {"sha": commit["sha"], "force": True},
+        {"sha": parent, "force": True},
     )
-    print(f"已更新 refs/heads/{BRANCH}")
+    print(f"已更新 refs/heads/{BRANCH} → {parent[:8]}")
 
-    os.remove(os.path.join(ROOT, "_tree.json"))
+
+def main():
+    import argparse
+
+    ap = argparse.ArgumentParser(description="通过 Git Data API 推送本地历史")
+    ap.add_argument(
+        "--rebuild",
+        action="store_true",
+        help="丢弃远端现有历史，从 bootstrap 提交重建完整镜像（用于清理被污染的历史）",
+    )
+    args = ap.parse_args()
+
+    n = len([p for p in _git("ls-files", "-z").split("\0") if p])
+    print(f"当前索引文件 {n} 个")
+    push_history(rebuild=args.rebuild)
     print("完成：https://github.com/CJX0712/sindyforge")
 
 

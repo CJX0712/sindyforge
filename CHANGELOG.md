@@ -18,17 +18,18 @@ All notable changes to this project are documented in this file.
 - CLI（`python -m sindyforge.cli run`）、端到端演示（`examples/run_demo.py`）。
 - 离线降级：sklearn/scipy 缺失时自动切到纯 numpy 坐标下降 Lasso 与中心差分。
 - 文档：`docs/architecture.md`、`docs/model_card.md`、README、CI、Dockerfile、Makefile。
-- 14 项单测（含离线兜底路径、确定性、导数精度）。
-
-### 变更
-- Duffing 改为**保守双阱**（delta=0）并取大振幅轨道：带阻尼版本会衰减到不动点，
-  使 x1 与截距项近共线，辨识问题退化不可解。
-- 门禁改为三项（support-F1 / 稀疏度 / 系数精度），rollout RMSE 降级为诊断量——
-  极限环系统上它由相位误差主导，不是合格判别量。
-- 统计检验由 Welch 双样本改为**配对 t 检验**：同一 cell 内方法天然配对，
-  系统间难度差异在作差时抵消（同一效应 p 从 0.317 变为 6.21e-39）。
+- 顶层公开 API（`from sindyforge import StabSINDy, SindyPipeline, SYSTEMS` 等 18 项）。
+- 15 项单测（含离线兜底路径、确定性、导数精度、打包契约）。
 
 ### 修复
+- **包布局缺陷（严重）**：仓库根同时充当包目录（`__init__.py` 与 `pyproject.toml` 同级），
+  但内部全为 `from sindyforge.x import y` 绝对导入 —— `pip install -e .` 之后
+  `import sindyforge` 直接失败，README 承诺的安装/运行步骤不可用。此前测试全绿是因
+  本地手工注入 `PYTHONPATH` 掩盖了问题。包代码已移入 `sindyforge/` 子目录（与 Dockerfile
+  原有 `COPY sindyforge ./sindyforge` 假设一致），无需任何 PYTHONPATH 即可导入。
+- `tests/test_cli.py` 仓库根计算沿用旧布局（向上三级），导致 CLI 子进程测试误报
+  `No module named sindyforge.cli`；改为向上二级并显式为子进程注入 PYTHONPATH。
+- 新增打包契约测试：剥离 PYTHONPATH 的子进程必须能导入顶层 API，锁死上述修复。
 - 坐标下降 Lasso 发散：`b_old` 引用别名导致一次迭代即"收敛"；G-Jacobi 形式用更新后的
   `b[j]` 造成正反馈几何发散。改为残差增量式更新。
 - `str_clean` 相对阈值被共线爆炸系数（±317）撑大，误删全部真值项。
@@ -41,6 +42,14 @@ All notable changes to this project are documented in this file.
   阈值被放大 col_norm 倍误删真值项。
 - `Config.to_dict()` 引用已删除的 `sign_frac` 字段导致序列化崩溃。
 - CLI 缺少 `__main__.py` 无法 `python -m sindyforge.cli`。
+
+### 变更
+- Duffing 改为**保守双阱**（delta=0）并取大振幅轨道：带阻尼版本会衰减到不动点，
+  使 x1 与截距项近共线，辨识问题退化不可解。
+- 门禁改为三项（support-F1 / 稀疏度 / 系数精度），rollout RMSE 降级为诊断量——
+  极限环系统上它由相位误差主导，不是合格判别量。
+- 统计检验由 Welch 双样本改为**配对 t 检验**：同一 cell 内方法天然配对，
+  系统间难度差异在作差时抵消（同一效应 p 从 0.317 变为 6.21e-39）。
 
 ### 已知边界
 - 幅值仅为主导项 1/28 的弱真值项（Lorenz `ẋ2` 的 `x2=−1`）无法恢复，

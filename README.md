@@ -123,20 +123,26 @@ for j, name in enumerate(lib.feature_names):
 
 ```
 sindyforge/
-├── core/        config · seed（确定性）· errors · types · interfaces · backends（离线探测）
-├── data/        systems（合成 DGP + 真值支撑）· derivatives（自适应 SG）
-├── domain/      library（多项式/三角候选库 + 特征命名对齐）
-├── discovery/   strlasso（StabSINDy 旗舰）· lasso_baseline · ols_baseline · single_threshold
-├── eval/        metrics（rollout RMSE / support-F1 / 系数误差 / 配对 t 检验）
-├── pipeline/    pipeline（编排 + 门禁聚合）
-├── cli/         命令行入口
-├── examples/    run_demo.py（端到端验收）
-└── tests/       14 项单测（含离线兜底路径）
+├── sindyforge/          ← 可安装的包（pip install . 后 import sindyforge）
+│   ├── core/            config · seed（确定性）· errors · types · interfaces · backends（离线探测）
+│   ├── data/            systems（合成 DGP + 真值支撑）· derivatives（自适应 SG）
+│   ├── domain/          library（多项式/三角候选库 + 特征命名对齐）
+│   ├── discovery/       strlasso（StabSINDy 旗舰）· lasso_baseline · ols_baseline · single_threshold
+│   ├── eval/            metrics（rollout RMSE / support-F1 / 系数误差 / 配对 t 检验）
+│   ├── pipeline/        pipeline（编排 + 门禁聚合）
+│   ├── preprocess/      normalize（标准化 / 去均值）
+│   └── cli/             命令行入口
+├── tests/               15 项单测（含离线兜底路径、确定性、打包契约）
+├── examples/            run_demo.py（端到端验收）
+├── docs/                 architecture.md · model_card.md
+├── tools/                push_via_api.py（代理受限环境下的 GitHub API 推送）
+├── Dockerfile · Makefile · requirements.lock.txt
+└── pyproject.toml
 ```
 
 ## 离线可跑
 
-sklearn / scipy 缺失时自动降级到纯 numpy 路径（`core/backends.py` 探测）：
+sklearn / scipy 缺失时自动降级到纯 numpy 路径（`sindyforge/core/backends.py` 探测）：
 
 - Lasso → 自研坐标下降（残差增量式，保证收敛）
 - Savitzky-Golay → 中心差分

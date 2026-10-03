@@ -14,17 +14,17 @@ cli ──> pipeline ──> {data, discovery, eval} ──> core
 
 | 模块 | 职责 | 关键约束 |
 |---|---|---|
-| `core/config.py` | 全部可调参数 + ENV 覆盖 | 所有数值确定性、可复现 |
-| `core/seed.py` | `set_all` 全局播种 | 保证逐位可复现 |
-| `core/backends.py` | `available_sklearn()` / `available_scipy()` 探测 | 离线降级开关的唯一入口 |
-| `core/types.py` | `DiscoveryResult` / `BenchmarkRow` / `SystemSpec` | 数据契约 |
-| `data/systems.py` | 合成 DGP（Lorenz / VdP / Duffing / Pendulum）+ 真值支撑声明 | `true_terms` 特征名必须与 library 对齐 |
-| `data/derivatives.py` | 自适应 SG 导数 + 噪声估计 | 见下文「四个关键设计」 |
-| `domain/library.py` | 多项式/三角候选库 + 特征命名 | 命名与 `true_terms` 严格一致，否则 F1 恒为 0 |
-| `discovery/strlasso.py` | **StabSINDy 旗舰** + numpy Lasso + OLS | 见下文 |
-| `discovery/*_baseline.py` | Lasso / OLS / SingleSTR 基线与消融对照 | 与旗舰同接口 |
-| `eval/metrics.py` | rollout RMSE / support-F1 / 系数误差 / 配对 t 检验 | 发散返回 1e6 哨兵值保持可比 |
-| `pipeline/pipeline.py` | 编排 + 门禁聚合 | 门禁判定集中在此 |
+| `sindyforge/core/config.py` | 全部可调参数 + ENV 覆盖 | 所有数值确定性、可复现 |
+| `sindyforge/core/seed.py` | `set_all` 全局播种 | 保证逐位可复现 |
+| `sindyforge/core/backends.py` | `available_sklearn()` / `available_scipy()` 探测 | 离线降级开关的唯一入口 |
+| `sindyforge/core/types.py` | `DiscoveryResult` / `BenchmarkRow` / `SystemSpec` | 数据契约 |
+| `sindyforge/data/systems.py` | 合成 DGP（Lorenz / VdP / Duffing / Pendulum）+ 真值支撑声明 | `true_terms` 特征名必须与 library 对齐 |
+| `sindyforge/data/derivatives.py` | 自适应 SG 导数 + 噪声估计 | 见下文「四个关键设计」 |
+| `sindyforge/domain/library.py` | 多项式/三角候选库 + 特征命名 | 命名与 `true_terms` 严格一致，否则 F1 恒为 0 |
+| `sindyforge/discovery/strlasso.py` | **StabSINDy 旗舰** + numpy Lasso + OLS | 见下文 |
+| `sindyforge/discovery/*_baseline.py` | Lasso / OLS / SingleSTR 基线与消融对照 | 与旗舰同接口 |
+| `sindyforge/eval/metrics.py` | rollout RMSE / support-F1 / 系数误差 / 配对 t 检验 | 发散返回 1e6 哨兵值保持可比 |
+| `sindyforge/pipeline/pipeline.py` | 编排 + 门禁聚合 | 门禁判定集中在此 |
 
 ## StabSINDy 流程
 
@@ -100,7 +100,7 @@ rollout RMSE 仅作诊断量如实报告。
 
 ## 离线降级
 
-`core/backends.py` 探测 sklearn / scipy 是否可用：
+`sindyforge/core/backends.py` 探测 sklearn / scipy 是否可用：
 
 | 能力 | 首选 | 降级 |
 |---|---|---|
@@ -112,6 +112,6 @@ rollout RMSE 仅作诊断量如实报告。
 
 ## 确定性
 
-`core/seed.set_all` 全局播种；全流程无未受控随机源（`make_dataset` 用 `RandomState(seed)`）。
+`sindyforge/core/seed.set_all` 全局播种；全流程无未受控随机源（`make_dataset` 用 `RandomState(seed)`）。
 `examples/run_demo.py` 的 `_determinism` 连跑两轮全量基准，要求方法聚合指标**逐位相等**
 （当前 `exact_match=True`）。
