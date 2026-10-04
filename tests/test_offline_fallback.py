@@ -1,4 +1,5 @@
 import numpy as np
+
 from sindyforge.data.derivatives import estimate_derivative
 from sindyforge.data.systems import LORENZ, simulate
 from sindyforge.discovery.lasso_baseline import LassoBaseline
