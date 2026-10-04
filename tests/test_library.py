@@ -1,4 +1,5 @@
 import numpy as np
+
 from sindyforge.domain.library import PolynomialLibrary, _monomial_powers
 
 
