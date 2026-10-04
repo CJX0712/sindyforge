@@ -1,4 +1,5 @@
 import numpy as np
+
 from sindyforge.core.config import Config
 from sindyforge.data.derivatives import estimate_derivative
 from sindyforge.data.systems import LORENZ, simulate
